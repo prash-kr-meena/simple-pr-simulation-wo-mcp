@@ -58,13 +58,36 @@ def get_repo_info():
     
     return owner, repo
 
-def create_pull_request(branch_name, base_branch="main"):
+def generate_commit(file_path=None):
+    """Generate a commit with random changes to a new time-based file."""
+    # Create a new time-based file name if not provided
+    if file_path is None:
+        timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+        file_path = f"dummy_file_{timestamp}.txt"
+    
+    # Create or update file with random content
+    random_content = generate_random_sentence()
+    print(f"Generating random content for {file_path}")
+    
+    with open(file_path, "w") as f:
+        f.write(random_content)
+    
+    # Add and commit the changes
+    print("Committing changes")
+    run_command(f"git add {file_path}")
+    commit_message = f"Add {file_path} with automated content"
+    run_command(f'git commit -m "{commit_message}"')
+    
+    return file_path
+
+def create_pull_request(branch_name, base_branch="main", file_path=None):
     """Create a pull request using GitHub CLI and return the PR number and URL."""
-    pr_title = "Automated update to dummy file"
+    file_name = file_path or "dummy_file.txt"
+    pr_title = f"Add {file_name} with automated content"
     pr_body = (
-        "This pull request contains automated changes to the dummy file.\n\n"
-        "Changes made:\n"
-        "- Added random content to dummy_file.txt\n\n"
+        f"This pull request contains automated changes.\n\n"
+        f"Changes made:\n"
+        f"- Added new file: {file_name}\n\n"
         f"Automatically generated at {datetime.datetime.now()}"
     )
     
@@ -188,6 +211,7 @@ def main():
     parser.add_argument("--merge-method", choices=["merge", "squash", "rebase"], default="squash", 
                         help="Merge method to use (default: squash)")
     parser.add_argument("--pr-number", help="PR number to merge (if only merging an existing PR)")
+    parser.add_argument("--file-path", default="dummy_file.txt", help="Path to the file to modify (default: dummy_file.txt)")
     args = parser.parse_args()
     
     # If only merging an existing PR
@@ -203,19 +227,8 @@ def main():
     print(f"Creating new branch: {branch_name}")
     run_command(f"git checkout -b {branch_name}")
     
-    # Create or update dummy_file.txt with random content
-    random_content = generate_random_sentence()
-    print("Generating random content for dummy_file.txt")
-    
-    dummy_file_path = "dummy_file.txt"
-    with open(dummy_file_path, "w") as f:
-        f.write(random_content)
-    
-    # Add and commit the changes
-    print("Committing changes")
-    run_command(f"git add {dummy_file_path}")
-    commit_message = "Update dummy file with automated changes"
-    run_command(f'git commit -m "{commit_message}"')
+    # Generate commit with changes to a new time-based file
+    created_file = generate_commit()
     
     # Push the branch to remote
     print("Pushing branch to remote")
@@ -223,7 +236,7 @@ def main():
 
     # Create a PR
     print("Creating pull request")
-    pr_url, pr_number = create_pull_request(branch_name, args.base)
+    pr_url, pr_number = create_pull_request(branch_name, args.base, created_file)
     
     # Return to the base branch
     run_command(f"git checkout {args.base}")
