@@ -13,6 +13,15 @@ from github import Github
 import json
 import re
 
+# List of dummy users (famous Bollywood actors)
+DUMMY_USERS = [
+    {"name": "Shah Rukh Khan", "email": "srk@bollywood.com"},
+    {"name": "Deepika Padukone", "email": "deepika@bollywood.com"},
+    {"name": "Amitabh Bachchan", "email": "amitabh@bollywood.com"},
+    {"name": "Priyanka Chopra", "email": "priyanka@bollywood.com"},
+    {"name": "Aamir Khan", "email": "aamir@bollywood.com"}
+]
+
 def run_command(command):
     """Run a shell command and return the output."""
     result = subprocess.run(command, shell=True, capture_output=True, text=True)
@@ -38,6 +47,22 @@ def generate_random_sentence():
     sentence += f"at {datetime.datetime.now()}"
     return sentence
 
+def save_git_config():
+    """Save the current Git user configuration."""
+    original_name = run_command("git config --get user.name")
+    original_email = run_command("git config --get user.email")
+    return original_name, original_email
+
+def set_git_config(name, email):
+    """Set Git user configuration."""
+    run_command(f'git config user.name "{name}"')
+    run_command(f'git config user.email "{email}"')
+
+def restore_git_config(name, email):
+    """Restore Git user configuration."""
+    run_command(f'git config user.name "{name}"')
+    run_command(f'git config user.email "{email}"')
+
 def get_repo_info():
     """Get the repository owner and name from the remote URL."""
     remote_url = run_command("git remote get-url origin")
@@ -60,36 +85,60 @@ def get_repo_info():
 
 def generate_commit(file_path=None):
     """Generate a commit with random changes to a new time-based file."""
-    # Create a new time-based file name if not provided
-    if file_path is None:
-        timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-        file_path = f"dummy_file_{timestamp}.txt"
+    # Save original Git config
+    original_name, original_email = save_git_config()
     
-    # Create or update file with random content
-    random_content = generate_random_sentence()
-    print(f"Generating random content for {file_path}")
-    
-    with open(file_path, "w") as f:
-        f.write(random_content)
-    
-    # Add and commit the changes
-    print("Committing changes")
-    run_command(f"git add {file_path}")
-    commit_message = f"Add {file_path} with automated content"
-    run_command(f'git commit -m "{commit_message}"')
-    
-    return file_path
+    try:
+        # Select random dummy user
+        dummy_user = random.choice(DUMMY_USERS)
+        print(f"Using dummy user: {dummy_user['name']} <{dummy_user['email']}>")
+        set_git_config(dummy_user["name"], dummy_user["email"])
+        
+        # Create a new time-based file name if not provided
+        if file_path is None:
+            timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+            file_path = f"dummy_file_{timestamp}.txt"
+        
+        # Create or update file with random content
+        random_content = generate_random_sentence()
+        print(f"Generating random content for {file_path}")
+        
+        with open(file_path, "w") as f:
+            f.write(random_content)
+        
+        # Add and commit the changes
+        print("Committing changes")
+        run_command(f"git add {file_path}")
+        commit_message = f"Add {file_path} with automated content"
+        run_command(f'git commit -m "{commit_message}"')
+        
+        return file_path, dummy_user
+    finally:
+        # Always restore original Git config, even if an error occurs
+        print(f"Restoring original Git config: {original_name} <{original_email}>")
+        restore_git_config(original_name, original_email)
 
-def create_pull_request(branch_name, base_branch="main", file_path=None):
+def create_pull_request(branch_name, base_branch="main", file_path=None, dummy_user=None):
     """Create a pull request using GitHub CLI and return the PR number and URL."""
     file_name = file_path or "dummy_file.txt"
-    pr_title = f"Add {file_name} with automated content"
-    pr_body = (
-        f"This pull request contains automated changes.\n\n"
-        f"Changes made:\n"
-        f"- Added new file: {file_name}\n\n"
-        f"Automatically generated at {datetime.datetime.now()}"
-    )
+    
+    # Include dummy user in PR title if available
+    if dummy_user:
+        pr_title = f"[{dummy_user['name']}] Add {file_name} with automated content"
+        pr_body = (
+            f"This pull request contains automated changes by {dummy_user['name']}.\n\n"
+            f"Changes made:\n"
+            f"- Added new file: {file_name}\n\n"
+            f"Automatically generated at {datetime.datetime.now()}"
+        )
+    else:
+        pr_title = f"Add {file_name} with automated content"
+        pr_body = (
+            f"This pull request contains automated changes.\n\n"
+            f"Changes made:\n"
+            f"- Added new file: {file_name}\n\n"
+            f"Automatically generated at {datetime.datetime.now()}"
+        )
     
     # Check if GitHub CLI is installed
     result = subprocess.run("which gh", shell=True, capture_output=True, text=True)
@@ -227,7 +276,7 @@ def main():
     run_command(f"git checkout -b {branch_name}")
     
     # Generate commit with changes to a new time-based file
-    created_file = generate_commit()
+    created_file, dummy_user = generate_commit()
     
     # Push the branch to remote
     print("Pushing branch to remote")
@@ -235,7 +284,7 @@ def main():
 
     # Create a PR
     print("Creating pull request")
-    pr_url, pr_number = create_pull_request(branch_name, args.base, created_file)
+    pr_url, pr_number = create_pull_request(branch_name, args.base, created_file, dummy_user)
     
     # Return to the base branch
     run_command(f"git checkout {args.base}")
