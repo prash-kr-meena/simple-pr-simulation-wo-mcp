@@ -11,7 +11,8 @@ The `create_pr.py` script automates the following workflow:
 3. Commits the changes with a descriptive commit message
 4. Pushes the branch to the remote repository
 5. Creates a pull request from the new branch to the main branch
-6. Returns to the main branch
+6. Optionally merges the pull request automatically
+7. Returns to the main branch
 
 ## Requirements
 
@@ -46,17 +47,35 @@ The `create_pr.py` script automates the following workflow:
    ./create_pr.py
    ```
 
-3. Optional: Specify a different base branch:
+3. Optional parameters:
    ```bash
+   # Specify a different base branch
    ./create_pr.py --base develop
+   
+   # Create and automatically merge the PR
+   ./create_pr.py --merge
+   
+   # Specify merge method (merge, squash, or rebase)
+   ./create_pr.py --merge --merge-method rebase
+   
+   # Only merge an existing PR by number
+   ./create_pr.py --pr-number 5 --merge-method squash
    ```
 
 ## Features
 
 - **Flexible Authentication**: The script can use either GitHub CLI (if installed) or PyGithub for authentication
-- **Command-line Arguments**: Supports customizing the base branch
+- **Command-line Arguments**: Supports customizing the base branch, merge options, and more
+- **PR Creation and Merging**: Can create PRs and optionally merge them in a single command
+- **Merge Existing PRs**: Can merge existing PRs by providing the PR number
+- **Multiple Merge Methods**: Supports different merge strategies (merge, squash, rebase)
 - **Error Handling**: Provides clear error messages if any step fails
 - **Random Content Generation**: Creates unique content for each PR
+
+## Limitations
+
+- **Merge Conflicts**: The script cannot automatically resolve merge conflicts. If a PR has conflicts with the base branch, you'll need to resolve them manually before merging.
+- **Auto-Merge**: Some repositories may not have auto-merge enabled, which can cause merge operations to fail if the PR is not immediately mergeable.
 
 ## Customization
 
@@ -70,6 +89,8 @@ You can modify the script to:
 
 ## Example Output
 
+### Creating a PR
+
 ```
 Creating new branch: auto-update-20250405175251
 Generating random content for dummy_file.txt
@@ -77,6 +98,34 @@ Committing changes
 Pushing branch to remote
 Creating pull request
 Creating pull request using GitHub CLI...
-Pull request created successfully: https://github.com/username/repo/pull/3
+Pull request #3 created successfully: https://github.com/username/repo/pull/3
 Process completed successfully!
 Pull request URL: https://github.com/username/repo/pull/3
+```
+
+### Creating and Merging a PR
+
+```
+Creating new branch: auto-update-20250405175251
+Generating random content for dummy_file.txt
+Committing changes
+Pushing branch to remote
+Creating pull request
+Creating pull request using GitHub CLI...
+Pull request #3 created successfully: https://github.com/username/repo/pull/3
+Waiting 5 seconds before attempting to merge...
+Attempting to merge PR #3...
+Pull request #3 merged successfully!
+✓ Merged pull request #3 (Automated update to dummy file)
+✓ Deleted branch auto-update-20250405175251
+Process completed successfully!
+Pull request URL: https://github.com/username/repo/pull/3
+```
+
+### Merging an Existing PR
+
+```
+Attempting to merge PR #5...
+Pull request #5 merged successfully!
+✓ Merged pull request #5 (Automated update to dummy file)
+✓ Deleted branch auto-update-20250405180112

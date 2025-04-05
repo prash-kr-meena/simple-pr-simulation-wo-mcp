@@ -11,6 +11,7 @@ import time
 import argparse
 from github import Github
 import json
+import re
 
 def run_command(command):
     """Run a shell command and return the output."""
@@ -58,7 +59,7 @@ def get_repo_info():
     return owner, repo
 
 def create_pull_request(branch_name, base_branch="main"):
-    """Create a pull request using GitHub CLI."""
+    """Create a pull request using GitHub CLI and return the PR number and URL."""
     pr_title = "Automated update to dummy file"
     pr_body = (
         "This pull request contains automated changes to the dummy file.\n\n"
@@ -75,11 +76,14 @@ def create_pull_request(branch_name, base_branch="main"):
         cmd = f'gh pr create --title "{pr_title}" --body "{pr_body}" --base {base_branch} --head {branch_name}'
         pr_output = run_command(cmd)
         
-        # Extract PR URL
-        pr_url_cmd = f'gh pr view {branch_name} --json url -q .url'
+        # Extract PR URL and number
+        pr_url_cmd = f'gh pr view {branch_name} --json url --jq .url'
         pr_url = run_command(pr_url_cmd)
-        print(f"Pull request created successfully: {pr_url}")
-        return pr_url
+        
+        pr_number_cmd = f'gh pr view {branch_name} --json number --jq .number'
+        pr_number = run_command(pr_number_cmd)
+        print(f"Pull request #{pr_number} created successfully: {pr_url}")
+        return pr_url, pr_number
     else:
         # Use PyGithub if GitHub CLI is not available
         print("GitHub CLI not found. Using PyGithub to create PR...")
@@ -103,15 +107,94 @@ def create_pull_request(branch_name, base_branch="main"):
             head=branch_name,
             base=base_branch
         )
-        print(f"Pull request created successfully: {pr.html_url}")
-        return pr.html_url
+        print(f"Pull request #{pr.number} created successfully: {pr.html_url}")
+        return pr.html_url, str(pr.number)
+
+def merge_pull_request(pr_number, merge_method="squash"):
+    """Merge a pull request using GitHub CLI."""
+    print(f"Attempting to merge PR #{pr_number}...")
+    
+    # Check if GitHub CLI is installed
+    result = subprocess.run("which gh", shell=True, capture_output=True, text=True)
+    if result.returncode == 0:
+        # Use GitHub CLI to merge PR
+        try:
+            # Try with --auto flag first
+            try:
+                cmd = f'gh pr merge {pr_number} --{merge_method} --delete-branch --auto'
+                merge_output = run_command(cmd)
+                print(f"Pull request #{pr_number} merged successfully!")
+                print(merge_output)
+                return True
+            except:
+                # If auto-merge fails, try without --auto flag
+                try:
+                    cmd = f'gh pr merge {pr_number} --{merge_method} --delete-branch'
+                    merge_output = run_command(cmd)
+                    print(f"Pull request #{pr_number} merged successfully!")
+                    print(merge_output)
+                    return True
+                except Exception as e:
+                    print(f"Error merging PR #{pr_number}: {str(e)}")
+                    return False
+        except Exception as e:
+            print(f"Error merging PR #{pr_number}: {str(e)}")
+            return False
+    else:
+        # Use PyGithub if GitHub CLI is not available
+        print("GitHub CLI not found. Using PyGithub to merge PR...")
+        try:
+            # Try to get token from environment or prompt
+            token = os.environ.get("GITHUB_TOKEN")
+            if not token:
+                token = input("Please enter your GitHub token: ")
+            
+            owner, repo_name = get_repo_info()
+            g = Github(token)
+            repo = g.get_repo(f"{owner}/{repo_name}")
+            
+            pr = repo.get_pull(int(pr_number))
+            if merge_method == "squash":
+                merge_result = pr.merge(merge_method="squash")
+            elif merge_method == "rebase":
+                merge_result = pr.merge(merge_method="rebase")
+            else:
+                merge_result = pr.merge()
+                
+            if pr.merged:
+                print(f"Pull request #{pr_number} merged successfully!")
+                
+                # Delete the branch if possible
+                try:
+                    ref = repo.get_git_ref(f"heads/{pr.head.ref}")
+                    ref.delete()
+                    print(f"Branch {pr.head.ref} deleted.")
+                except:
+                    print(f"Could not delete branch {pr.head.ref}.")
+                    
+                return True
+            else:
+                print(f"Failed to merge PR #{pr_number}.")
+                return False
+        except Exception as e:
+            print(f"Error merging PR #{pr_number}: {str(e)}")
+            return False
 
 def main():
     """Main function to create a branch, make changes, and create a PR."""
     parser = argparse.ArgumentParser(description="Create a PR with random changes to a dummy file.")
     parser.add_argument("--base", default="main", help="Base branch to create PR against (default: main)")
+    parser.add_argument("--merge", action="store_true", help="Merge the PR after creation")
+    parser.add_argument("--merge-method", choices=["merge", "squash", "rebase"], default="squash", 
+                        help="Merge method to use (default: squash)")
+    parser.add_argument("--pr-number", help="PR number to merge (if only merging an existing PR)")
     args = parser.parse_args()
     
+    # If only merging an existing PR
+    if args.pr_number:
+        merge_pull_request(args.pr_number, args.merge_method)
+        return
+        
     # Generate a branch name with current timestamp
     timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
     branch_name = f"auto-update-{timestamp}"
@@ -137,13 +220,19 @@ def main():
     # Push the branch to remote
     print("Pushing branch to remote")
     run_command(f"git push -u origin {branch_name}")
-    
+
     # Create a PR
     print("Creating pull request")
-    pr_url = create_pull_request(branch_name, args.base)
+    pr_url, pr_number = create_pull_request(branch_name, args.base)
     
     # Return to the base branch
     run_command(f"git checkout {args.base}")
+    
+    # Merge the PR if requested
+    if args.merge:
+        print("Waiting 5 seconds before attempting to merge...")
+        time.sleep(5)  # Wait a bit to ensure GitHub has processed the PR
+        merge_pull_request(pr_number, args.merge_method)
     
     print("Process completed successfully!")
     print(f"Pull request URL: {pr_url}")
