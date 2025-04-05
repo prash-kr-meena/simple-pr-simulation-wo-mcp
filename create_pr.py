@@ -211,7 +211,6 @@ def main():
     parser.add_argument("--merge-method", choices=["merge", "squash", "rebase"], default="squash", 
                         help="Merge method to use (default: squash)")
     parser.add_argument("--pr-number", help="PR number to merge (if only merging an existing PR)")
-    parser.add_argument("--file-path", default="dummy_file.txt", help="Path to the file to modify (default: dummy_file.txt)")
     args = parser.parse_args()
     
     # If only merging an existing PR
