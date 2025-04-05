@@ -97,7 +97,10 @@ def generate_commit(file_path=None):
         # Create a new time-based file name if not provided
         if file_path is None:
             timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-            file_path = f"dummy_file_{timestamp}.txt"
+            file_path = f"dummy_files/dummy_file_{timestamp}.txt"
+            
+            # Ensure the dummy_files directory exists
+            os.makedirs("dummy_files", exist_ok=True)
         
         # Create or update file with random content
         random_content = generate_random_sentence()
